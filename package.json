@@ -1,0 +1,10 @@
+{
+  "name": "medshelf-payments",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "node --check api/_common.js && node --check api/create-order.js && node --check api/verify-payment.js && node --check api/webhook.js && node --check api/health.js"
+  }
+}
