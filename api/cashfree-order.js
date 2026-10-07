@@ -1,108 +1,98 @@
-const crypto = require('node:crypto');
+const crypto=require('node:crypto');
+const catalog=require('./_catalog');
+const {json,requireEnv,supabase,dbHeaders}=require('./_common');
 
-function cors(res) {
-  const origin = process.env.FRONTEND_ORIGIN || 'https://hardikdilhor.github.io';
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
+function clean(v,max=500){return String(v??'').trim().slice(0,max);}
+function validEmail(v){return /^\S+@\S+\.\S+$/.test(String(v||''));}
+function validPhone(v){return /^\d{10}$/.test(String(v||''));}
+function validPin(v){return /^\d{6}$/.test(String(v||''));}
 
-module.exports = async function(req, res) {
-  cors(res);
+module.exports=async function(req,res){
+  if(req.method==='OPTIONS')return json(res,204,{});
+  if(req.method!=='POST')return json(res,405,{error:'Method not allowed.'});
+  try{
+    requireEnv();
+    const clientId=process.env.CASHFREE_CLIENT_ID;
+    const clientSecret=process.env.CASHFREE_CLIENT_SECRET;
+    if(!clientId||!clientSecret)return json(res,500,{error:'Cashfree credentials are not configured.'});
 
-  if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
+    const body=req.body||{};
+    const customer=body.customer||{};
+    const requestedItems=Array.isArray(body.items)?body.items:[];
+    const checkoutAttemptId=clean(body.checkoutAttemptId,120)||('ms-'+Date.now()+'-'+crypto.randomBytes(5).toString('hex'));
 
-  try {
-    const clientId = process.env.CASHFREE_CLIENT_ID;
-    const clientSecret = process.env.CASHFREE_CLIENT_SECRET;
+    const name=clean(customer.name,100), email=clean(customer.email,120).toLowerCase();
+    const phone=clean(customer.phone,20), address=clean(customer.address,500);
+    const city=clean(customer.city,80), state=clean(customer.state,80), pin=clean(customer.pin,10);
+    if(!name||!validEmail(email)||!validPhone(phone)||!address||city!=='Patiala'||state!=='Punjab'||!validPin(pin))
+      return json(res,400,{error:'Please provide valid delivery details.'});
 
-    if (!clientId || !clientSecret) {
-      return res.status(500).json({
-        error: 'Cashfree credentials are not configured.'
-      });
+    const items=[];
+    for(const raw of requestedItems){
+      const productId=Number(raw?.productId), quantity=Number(raw?.quantity);
+      const product=catalog.find(x=>Number(x.id)===productId);
+      if(!product||!Number.isInteger(quantity)||quantity<1||quantity>20)
+        return json(res,400,{error:'Invalid order item.'});
+      items.push({productId,quantity,title:product.title,unitPrice:Number(product.price)});
     }
+    if(!items.length)return json(res,400,{error:'Your cart is empty.'});
 
-    const body = req.body || {};
-    const amount = Number(body.amount);
-    const customer = body.customer || {};
+    const total=items.reduce((sum,x)=>sum+x.unitPrice*x.quantity,0);
+    if(!Number.isFinite(total)||total<=0)return json(res,400,{error:'Invalid order total.'});
 
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return res.status(400).json({
-        error: 'Invalid payment amount.'
-      });
-    }
+    const orderId='MS_'+Date.now().toString(36).toUpperCase()+'_'+crypto.randomBytes(4).toString('hex').toUpperCase();
+    const orderNumber=orderId;
+    const now=new Date().toISOString();
 
-    if (!/^\d{10}$/.test(String(customer.phone || ''))) {
-      return res.status(400).json({
-        error: 'Invalid phone number.'
-      });
-    }
-
-    const orderId =
-      'MS_' +
-      Date.now().toString(36).toUpperCase() +
-      '_' +
-      crypto.randomBytes(4).toString('hex').toUpperCase();
-
-    const base =
-      process.env.CASHFREE_ENV === 'sandbox'
-        ? 'https://sandbox.cashfree.com/pg'
-        : 'https://api.cashfree.com/pg';
-
-    const response = await fetch(base + '/orders', {
-      method: 'POST',
-      headers: {
-        'x-client-id': clientId,
-        'x-client-secret': clientSecret,
-        'x-api-version': '2025-01-01',
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        order_id: orderId,
-        order_amount: Number(amount.toFixed(2)),
-        order_currency: 'INR',
-
-        customer_details: {
-          customer_id: 'medshelf_' + String(customer.phone),
-          customer_name: String(customer.name || '').slice(0, 100),
-          customer_email: String(customer.email || '').slice(0, 100),
-          customer_phone: String(customer.phone)
-        },
-
-        order_meta: {
-          return_url:
-            'https://hardikdilhor.github.io/Medshelf/?cashfree_order_id={order_id}'
-        },
-
-        order_note: 'MedShelf MBBS books order'
+    const inserted=await supabase('orders',{
+      method:'POST',
+      headers:dbHeaders('return=representation'),
+      body:JSON.stringify({
+        checkout_attempt_id:checkoutAttemptId,
+        order_number:orderNumber,
+        gateway_order_id:null,
+        amount:Math.round(total*100),
+        currency:'INR',
+        payment_status:'created',
+        order_status:'pending',
+        customer_name:name,customer_email:email,customer_phone:phone,
+        address,city,state,pin,college:'GMC Patiala',created_at:now
       })
     });
+    const order=Array.isArray(inserted)?inserted[0]:inserted;
+    if(!order?.id)throw new Error('Could not save order.');
 
-    const data = await response.json().catch(() => ({}));
+    await supabase('order_items',{
+      method:'POST',
+      headers:dbHeaders('return=minimal'),
+      body:JSON.stringify(items.map(x=>({order_id:order.id,product_id:x.productId,title:x.title,unit_price:Math.round(x.unitPrice*100),quantity:x.quantity})))
+    });
 
-    if (!response.ok) {
-      console.error('Cashfree error:', data);
-
-      return res.status(response.status).json({
-        error:
-          data.message ||
-          'Cashfree could not create the order.'
-      });
+    const base=process.env.CASHFREE_ENV==='sandbox'?'https://sandbox.cashfree.com/pg':'https://api.cashfree.com/pg';
+    const cf=await fetch(base+'/orders',{
+      method:'POST',
+      headers:{'x-client-id':clientId,'x-client-secret':clientSecret,'x-api-version':'2025-01-01','Accept':'application/json','Content-Type':'application/json'},
+      body:JSON.stringify({
+        order_id:orderId,order_amount:Number(total.toFixed(2)),order_currency:'INR',
+        customer_details:{customer_id:'medshelf_'+phone,customer_name:name,customer_email:email,customer_phone:phone},
+        order_meta:{return_url:'https://hardikdilhor.github.io/Medshelf/?cashfree_order_id={order_id}'},
+        order_note:'MedShelf MBBS books order'
+      })
+    });
+    const data=await cf.json().catch(()=>({}));
+    if(!cf.ok){
+      await supabase('orders?id=eq.'+encodeURIComponent(order.id),{method:'PATCH',headers:dbHeaders('return=minimal'),body:JSON.stringify({payment_status:'creation_failed',order_status:'cancelled'})}).catch(()=>{});
+      return json(res,cf.status,{error:data.message||'Cashfree could not create the order.'});
     }
 
-    return res.status(200).json({
-      success: true,
-      order_id: data.order_id,
-      payment_session_id: data.payment_session_id
+    await supabase('orders?id=eq.'+encodeURIComponent(order.id),{
+      method:'PATCH',headers:dbHeaders('return=minimal'),
+      body:JSON.stringify({gateway_order_id:data.order_id||orderId})
     });
 
-  } catch (error) {
-    console.error('Cashfree order error:', error);
-
-    return res.status(500).json({
-      error: 'Unable to create Cashfree payment order.'
-    });
+    return json(res,200,{success:true,order_id:data.order_id||orderId,payment_session_id:data.payment_session_id});
+  }catch(error){
+    console.error('Cashfree order error:',error);
+    return json(res,500,{error:'Unable to create Cashfree payment order.'});
   }
 };

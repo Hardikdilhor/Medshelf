@@ -1,31 +1,33 @@
-const {json,supabase,dbHeaders,sendConfirmationEmail}=require('./_common');
-async function signedUrl(path){
-  const r=await fetch(process.env.SUPABASE_URL+'/storage/v1/object/sign/manual-payment-screenshots',{method:'POST',headers:{apikey:process.env.SUPABASE_SERVICE_ROLE_KEY,Authorization:'Bearer '+process.env.SUPABASE_SERVICE_ROLE_KEY,'Content-Type':'application/json'},body:JSON.stringify({paths:[path],expiresIn:1800})});
-  const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.message||'Could not create screenshot link.');
-  return process.env.SUPABASE_URL+'/storage/v1'+(d?.[0]?.signedURL||'');
-}
+const {json,requireEnv,supabase,dbHeaders}=require('./_common');
 function auth(req){return String(req.headers.authorization||'').replace(/^Bearer\s+/i,'')===String(process.env.ADMIN_REVIEW_TOKEN||'');}
+function statusFor(o){
+  if(o.order_status==='delivered')return 'Delivered';
+  const d=new Date(o.created_at).getTime()+3*86400000,now=Date.now();
+  if(now>d)return 'Overdue — '+Math.floor((now-d)/86400000+1)+' day'+(Math.floor((now-d)/86400000+1)===1?'':'s');
+  if(new Date(d).toDateString()===new Date().toDateString())return 'Due Today';
+  if(new Date(d).toDateString()===new Date(Date.now()+86400000).toDateString())return 'Due Tomorrow';
+  return 'Upcoming';
+}
 module.exports=async function(req,res){
-  if(req.method==='OPTIONS') return json(res,204,{});
-  if(!process.env.ADMIN_REVIEW_TOKEN||!auth(req)) return json(res,401,{error:'Unauthorized.'});
+  if(req.method==='OPTIONS')return json(res,204,{});
+  if(!process.env.ADMIN_REVIEW_TOKEN||!auth(req))return json(res,401,{error:'Unauthorized.'});
   try{
+    requireEnv();
     if(req.method==='GET'){
-      const rows=await supabase('manual_payment_submissions?status=eq.pending&select=id,order_id,utr,claimed_paid_at,screenshot_path,submitted_at,status,orders(order_number,amount,currency,customer_name,customer_email,customer_phone,address,city,state,pin,college)&order=submitted_at.desc');
-      for(const x of rows) x.screenshotUrl=await signedUrl(x.screenshot_path);
+      const rows=await supabase('orders?payment_status=eq.paid&select=id,order_number,gateway_order_id,amount,currency,payment_status,order_status,customer_name,customer_email,customer_phone,address,city,state,pin,created_at,paid_at,confirmation_email_sent_at&order=created_at.desc');
+      for(const o of rows){
+        o.delivery_deadline=new Date(new Date(o.created_at).getTime()+3*86400000).toISOString();
+        o.delivery_label=statusFor(o);
+        o.items=await supabase('order_items?order_id=eq.'+encodeURIComponent(o.id)+'&select=title,unit_price,quantity&order=id.asc');
+      }
       return json(res,200,{orders:rows});
     }
     if(req.method==='POST'){
-      const b=req.body||{}; const id=String(b.id||''); const action=String(b.action||'');
-      if(!id||!['approve','reject'].includes(action)) return json(res,400,{error:'Invalid review request.'});
-      const rows=await supabase('manual_payment_submissions?id=eq.'+encodeURIComponent(id)+'&select=id,order_id,status,orders(*)');
-      const sub=Array.isArray(rows)?rows[0]:null; if(!sub) return json(res,404,{error:'Submission not found.'});
-      if(sub.status!=='pending') return json(res,409,{error:'This submission has already been reviewed.'});
-      const approved=action==='approve';
-      await supabase('manual_payment_submissions?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:dbHeaders('return=minimal'),body:JSON.stringify({status:approved?'approved':'rejected',reviewed_at:new Date().toISOString()})});
-      await supabase('orders?id=eq.'+encodeURIComponent(sub.order_id),{method:'PATCH',headers:dbHeaders('return=minimal'),body:JSON.stringify({payment_status:approved?'manual_verified':'manual_rejected',order_status:approved?'confirmed':'cancelled',paid_at:approved?new Date().toISOString():null})});
-      if(approved && sub.orders) await sendConfirmationEmail(sub.orders).catch(()=>{});
-      return json(res,200,{reviewed:true,status:approved?'approved':'rejected'});
+      const b=req.body||{},id=String(b.id||''),action=String(b.action||'');
+      if(!id||action!=='delivered')return json(res,400,{error:'Invalid request.'});
+      const updated=await supabase('orders?id=eq.'+encodeURIComponent(id)+'&payment_status=eq.paid',{method:'PATCH',headers:dbHeaders('return=representation'),body:JSON.stringify({order_status:'delivered',delivered_at:new Date().toISOString()})});
+      return json(res,200,{updated:true,order:Array.isArray(updated)?updated[0]:updated});
     }
     return json(res,405,{error:'Method not allowed.'});
-  }catch(err){console.error(err);return json(res,500,{error:err.message||'Admin request failed.'});}
+  }catch(e){console.error('Admin orders:',e);return json(res,500,{error:e.message||'Admin request failed.'});}
 };
