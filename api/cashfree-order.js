@@ -1,13 +1,17 @@
 const crypto = require('node:crypto');
 
-module.exports = async function(req, res) {
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
+function cors(res) {
+  const origin = process.env.FRONTEND_ORIGIN || 'https://hardikdilhor.github.io';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed.' });
-  }
+module.exports = async function(req, res) {
+  cors(res);
+
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
 
   try {
     const clientId = process.env.CASHFREE_CLIENT_ID;
@@ -24,11 +28,15 @@ module.exports = async function(req, res) {
     const customer = body.customer || {};
 
     if (!Number.isFinite(amount) || amount <= 0) {
-      return res.status(400).json({ error: 'Invalid payment amount.' });
+      return res.status(400).json({
+        error: 'Invalid payment amount.'
+      });
     }
 
     if (!/^\d{10}$/.test(String(customer.phone || ''))) {
-      return res.status(400).json({ error: 'Invalid phone number.' });
+      return res.status(400).json({
+        error: 'Invalid phone number.'
+      });
     }
 
     const orderId =
@@ -37,38 +45,40 @@ module.exports = async function(req, res) {
       '_' +
       crypto.randomBytes(4).toString('hex').toUpperCase();
 
-    const response = await fetch(
-      'https://sandbox.cashfree.com/pg/orders',
-      {
-        method: 'POST',
-        headers: {
-          'x-client-id': clientId,
-          'x-client-secret': clientSecret,
-          'x-api-version': '2025-01-01',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
+    const base =
+      process.env.CASHFREE_ENV === 'sandbox'
+        ? 'https://sandbox.cashfree.com/pg'
+        : 'https://api.cashfree.com/pg';
+
+    const response = await fetch(base + '/orders', {
+      method: 'POST',
+      headers: {
+        'x-client-id': clientId,
+        'x-client-secret': clientSecret,
+        'x-api-version': '2025-01-01',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        order_id: orderId,
+        order_amount: Number(amount.toFixed(2)),
+        order_currency: 'INR',
+
+        customer_details: {
+          customer_id: 'medshelf_' + String(customer.phone),
+          customer_name: String(customer.name || '').slice(0, 100),
+          customer_email: String(customer.email || '').slice(0, 100),
+          customer_phone: String(customer.phone)
         },
-        body: JSON.stringify({
-          order_id: orderId,
-          order_amount: Number(amount.toFixed(2)),
-          order_currency: 'INR',
 
-          customer_details: {
-            customer_id: 'medshelf_' + String(customer.phone),
-            customer_name: String(customer.name || '').slice(0, 100),
-            customer_email: String(customer.email || '').slice(0, 100),
-            customer_phone: String(customer.phone)
-          },
+        order_meta: {
+          return_url:
+            'https://hardikdilhor.github.io/Medshelf/?cashfree_order_id={order_id}'
+        },
 
-          order_meta: {
-            return_url:
-              'https://hardikdilhor.github.io/Medshelf/?cashfree_order_id={order_id}'
-          },
-
-          order_note: 'MedShelf MBBS books order'
-        })
-      }
-    );
+        order_note: 'MedShelf MBBS books order'
+      })
+    });
 
     const data = await response.json().catch(() => ({}));
 
@@ -76,7 +86,9 @@ module.exports = async function(req, res) {
       console.error('Cashfree error:', data);
 
       return res.status(response.status).json({
-        error: data.message || 'Cashfree could not create the order.'
+        error:
+          data.message ||
+          'Cashfree could not create the order.'
       });
     }
 
