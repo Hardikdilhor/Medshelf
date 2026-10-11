@@ -116,7 +116,7 @@ const extraBooks=[
 {id:303,kind:'books',year:'1st Year',subject:'ANATOMY',title:'Snell’s Clinical Neuroanatomy (9th Edition)',author:'Ryan Splittgerber',price:0,old:6266,c:'blue',tag:'SNELL NEURO',img:'https://www.kingdompubl.com/image/catalog/9781975195946.jpg'},
 {id:304,kind:'books',year:'1st Year',subject:'ANATOMY',title:'Textbook of Clinical Neuroanatomy — Vishram Singh (5th Edition)',author:'Vishram Singh',price:0,old:985,c:'purple',tag:'VISHRAM SINGH',img:'https://cdn01.sapnaonline.com/product_media/9788131268599/md_9788131268599_260720241018995.jpg'},
 {id:305,kind:'books',year:'1st Year',subject:'PHYSIOLOGY',title:'Essentials of Medical Physiology — Sembulingam (11th Edition)',author:'K. Sembulingam; Prema Sembulingam',price:0,old:1925,c:'green',tag:'SEMBULINGAM',img:'https://www.atithibooks.com/s/598ecac63f8a479051bb2633/6aa2591787d3006a6cc0128b/whatsapp-image-2026-09-10-at-11-21-02.jpeg'},
-{id:306,kind:'books',year:'1st Year',subject:'PHYSIOLOGY',title:'Comprehensive Textbook of Medical Physiology — G K Pal (5th Edition)',author:'G K Pal; Pravati Pal; Nivedita Nanda',price:0,old:1895,c:'green',tag:'GK PAL',img:'https://cdn.storehippo.com/s/598ecac63f8a479051bb2633/6a77ed8383c9f54947291ff1/9789309529689.jpg'},
+{id:306,kind:'books',year:'1st Year',subject:'PHYSIOLOGY',title:'Comprehensive Textbook of Medical Physiology — G K Pal (5th Edition)',author:'G K Pal; Pravati Pal; Nivedita Nanda',price:1300,old:1895,c:'green',tag:'GK PAL',img:'https://cdn.storehippo.com/s/598ecac63f8a479051bb2633/6a77ed8383c9f54947291ff1/9789309529689.jpg'},
 {id:307,kind:'books',year:'1st Year',subject:'BIOCHEMISTRY',title:'Biochemistry — Satyanarayana (7th Edition)',author:'U. Satyanarayana; U. Chakrapani',price:0,old:1850,c:'blue',tag:'SATYANARAYANA',img:'https://www.atithibooks.com/s/598ecac63f8a479051bb2633/68622f27bec87bafa94eed40/9788198953803.jpg'},
 {id:308,kind:'books',year:'1st Year',subject:'BIOCHEMISTRY',title:'Lippincott Illustrated Reviews: Biochemistry (3rd South Asia Edition)',author:'Emine E. Abali et al.',price:0,old:2405,c:'blue',tag:'LIPPINCOTT',img:'https://www.libreriavesalius.com/cdn/shop/files/9781975155117.jpg?v=1737472457'},
 {id:309,kind:'books',year:'1st Year',subject:'BIOCHEMISTRY',title:'Textbook of Biochemistry for Medical Students — Vasudevan (11th Edition)',author:'D. M. Vasudevan; S. Sreekumari; K. Vaidyanathan',price:0,old:1850,c:'green',tag:'VASUDEVAN',img:'https://www.atithibooks.com/s/598ecac63f8a479051bb2633/6a981c8a542f9e6a09b4786e/vasudevan-biochem.jpg'},
@@ -147,7 +147,11 @@ const notes=[
 {id:109,kind:'notes',year:'3rd Year',subject:'PSM',title:'Arpit PSM Notes',author:'Arpit',price:700,old:900,c:'pink',tag:'ARPIT',img:'https://img.freeup.app/fit-in/600x600/filters%3Aupscale%28%29/2a766c09ce6a81876dca43155dc9d3da.jpg'},
 {id:116,kind:'notes',year:'3rd Year',subject:'OPHTHALMOLOGY',title:'Marrow Ophthalmology Notes',author:'Marrow',price:310,old:400,c:'blue',tag:'MARROW OPHTHA',img:''},
 {id:117,kind:'notes',year:'3rd Year',subject:'ENT',title:'Marrow ENT Notes',author:'Marrow',price:410,old:550,c:'green',tag:'MARROW ENT',img:''},
-{id:118,kind:'notes',year:'3rd Year',subject:'FORENSIC MEDICINE',title:'Marrow Forensic Medicine Notes',author:'Marrow',price:320,old:420,c:'brown',tag:'MARROW FORENSIC',img:''}
+{id:118,kind:'notes',year:'3rd Year',subject:'FORENSIC MEDICINE',title:'Marrow Forensic Medicine Notes',author:'Marrow',price:320,old:420,c:'brown',tag:'MARROW FORENSIC',img:''},
+{id:320,kind:'books',year:'3rd Year',subject:'MEDICINE',title:'Clinical Medicine — Arpit Bahlor',author:'Arpit Bahlor',price:1350,old:1600,c:'blue',tag:'ARPIT BAHLOOR',img:''},
+{id:321,kind:'books',year:'4th Year',subject:'OB GYN',title:"D.C. Dutta's Textbook of Gynaecology",author:'D. C. Dutta',price:980,old:1250,c:'brown',tag:'DUTTA GYNAECOLOGY',img:''},
+{id:322,kind:'books',year:'4th Year',subject:'SURGERY',title:'A Manual on Clinical Surgery — S. Das',author:'S. Das',price:1150,old:1400,c:'green',tag:'S. DAS SURGERY',img:''},
+{id:323,kind:'books',year:'4th Year',subject:'SURGERY',title:"Shaw's Textbook of Operative Surgery (SRB)",author:'Shaw / SRB',price:1330,old:1600,c:'red',tag:'OPERATIVE SURGERY',img:''}
 ];
 const PRICED_BOOK_KEYS=new Set([
   '1st Year|Test Book',
@@ -171,7 +175,12 @@ const PRICED_BOOK_KEYS=new Set([
   '3rd Year|Comprehensive Ophthalmology (10th Edition)',
   "3rd Year|Dhingra's Diseases of Ear, Nose and Throat (9th Edition)",
   '3rd Year|V. V. Pillay — Comprehensive Medical Toxicology (3rd Edition)',
-  '3rd Year|Forensic Medicine & Toxicology for Medical Students — Gautam Biswas (7th Edition)'
+  '3rd Year|Forensic Medicine & Toxicology for Medical Students — Gautam Biswas (7th Edition)',
+  '1st Year|Comprehensive Textbook of Medical Physiology — G K Pal (5th Edition)',
+  '3rd Year|Clinical Medicine — Arpit Bahlor',
+  "4th Year|D.C. Dutta's Textbook of Gynaecology",
+  '4th Year|A Manual on Clinical Surgery — S. Das',
+  "4th Year|Shaw's Textbook of Operative Surgery (SRB)"
 ]);
 function bookIsComingSoon(b){return b.kind==='books'&&!PRICED_BOOK_KEYS.has(`${b.year}|${b.title}`);}
 function safeImageUrl(url){ if(!url || String(url).startsWith('data:')) return url; return 'https://images.weserv.nl/?url='+encodeURIComponent(url); }
